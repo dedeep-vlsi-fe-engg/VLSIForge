@@ -4853,13 +4853,15 @@ function buildInverterLayout(tech, wn, wp, l) {
 // ===================== BITFORGE ACCOUNTS (Firebase) =====================
 // ▼▼▼ PASTE YOUR FIREBASE WEB CONFIG HERE (Firebase console → Project settings → Your apps) ▼▼▼
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_API_KEY",
-  authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-  projectId: "PASTE_PROJECT_ID",
-  storageBucket: "PASTE_PROJECT_ID.appspot.com",
-  messagingSenderId: "PASTE_SENDER_ID",
-  appId: "PASTE_APP_ID",
+  apiKey: "AIzaSyDbrzemNeqIipaOAdL0AW-0QraTD02iePE",
+  authDomain: "vlsiforge.firebaseapp.com",
+  projectId: "vlsiforge",
+  storageBucket: "vlsiforge.firebasestorage.app",
+  messagingSenderId: "781926287311",
+  appId: "1:781926287311:web:9ebc046779120a6db6f4ba",
+  measurementId: "G-EE77QCW9G7",
 };
+const ADMIN_EMAIL = 'fpgaforgedss@gmail.com';
 // ▲▲▲ ------------------------------------------------------------------------------------ ▲▲▲
 const BRAND = {
   parent: 'BitForge', product: 'VLSIForge', credit: 'Developed by DSS with Claude', contact: 'fpgaforgedss@gmail.com',
@@ -4877,13 +4879,14 @@ const Auth = {
       return true;
     } catch (e) { console.warn('Firebase init failed', e); return false; }
   },
+  isAdmin() { return !!(this.user && (this.user.email || '').toLowerCase() === ADMIN_EMAIL); },
   name() { return this.user ? (this.user.displayName || (this.user.email || '').split('@')[0]) : 'Local session'; },
   async saveProfile(extra = {}) {
     if (!this.db || !this.user) return;
     const ts = firebase.firestore.FieldValue.serverTimestamp();
     try {
       await this.db.collection('users').doc(this.user.uid).set(Object.assign({
-        email: this.user.email, name: this.user.displayName || '', app: 'VLSIForge', lastLoginAt: ts,
+        email: this.user.email, name: this.user.displayName || '', app: 'VLSIForge', emailVerified: !!this.user.emailVerified, lastLoginAt: ts,
       }, extra), { merge: true });
     } catch (e) { console.warn('Profile write failed', e); }
   },
@@ -4916,8 +4919,8 @@ function renderLogin() {
   const show = h('button', { type: 'button', class: 'lg-eye', 'aria-label': 'Show password', onclick: () => { passIn.type = passIn.type === 'password' ? 'text' : 'password'; show.textContent = passIn.type === 'password' ? 'Show' : 'Hide'; } }, 'Show');
   const nameRow = h('label', { class: 'lg-f', hidden: true }, h('span', {}, 'Name'), nameIn);
   const submit = h('button', { type: 'submit', class: 'lg-go' }, 'Sign in');
-  const tIn = h('button', { type: 'button', class: 'lg-tab on', role: 'tab' }, 'Sign in'), tUp = h('button', { type: 'button', class: 'lg-tab', role: 'tab' }, 'Create account');
-  const setMode = (m) => { mode = m; tIn.classList.toggle('on', m === 'in'); tUp.classList.toggle('on', m === 'up'); nameRow.hidden = m !== 'up'; submit.textContent = m === 'in' ? 'Sign in' : 'Create account'; passIn.autocomplete = m === 'in' ? 'current-password' : 'new-password'; say('', ''); };
+  const tIn = h('button', { type: 'button', class: 'lg-tab on', role: 'tab' }, 'Sign in'), tUp = h('button', { type: 'button', class: 'lg-tab', role: 'tab' }, 'Create free account');
+  const setMode = (m) => { mode = m; tIn.classList.toggle('on', m === 'in'); tUp.classList.toggle('on', m === 'up'); nameRow.hidden = m !== 'up'; submit.textContent = m === 'in' ? 'Sign in' : 'Create my free account'; passIn.autocomplete = m === 'in' ? 'current-password' : 'new-password'; say('', ''); };
   tIn.onclick = () => setMode('in'); tUp.onclick = () => setMode('up');
   const forgot = h('button', { type: 'button', class: 'lg-link', onclick: async () => {
     if (!ok) return say('Accounts are not configured on this copy of the site.');
@@ -4957,7 +4960,7 @@ function renderLogin() {
       h('div', { class: 'lg-foot' }, BRAND.product + ' is a ' + BRAND.parent + ' company · ' + BRAND.credit)),
     h('section', { class: 'lg-right' },
       h('div', { class: 'lg-card' },
-        h('div', { class: 'lg-cardhead' }, h('img', { src: LOGO.vlsiIcon, alt: '' }), h('div', {}, h('h2', {}, 'Welcome to VLSIForge'), h('p', { class: 'lg-sub' }, ok ? 'Sign in to your VLSIForge account, or create one.' : 'Accounts aren\'t set up on this copy of the site yet. You can still use everything locally.'))),
+        h('div', { class: 'lg-cardhead' }, h('img', { src: LOGO.vlsiIcon, alt: '' }), h('div', {}, h('h2', {}, 'Welcome to VLSIForge'), h('p', { class: 'lg-sub' }, ok ? 'Sign in, or create a free account — all features are free.' : 'Accounts aren\'t set up on this copy of the site yet. You can still use everything locally.'))),
         ok ? form : null,
         h('div', { class: 'lg-row' }, offline),
         h('p', { class: 'lg-fine' }, 'Only your account (name, email, sign-in times) is stored on the server. Your designs are saved in this browser and, if you choose, in a folder on your PC.'))));
@@ -4996,6 +4999,7 @@ function renderUserChip() {
   chip.onclick = (e) => { const r = chip.getBoundingClientRect(); showMenu([
     { label: Auth.user ? Auth.user.email : 'Local session (no account)', disabled: true },
     { label: 'Account…', disabled: !Auth.user, act: () => accountForm() },
+    ...(Auth.isAdmin() ? [{ label: 'Admin dashboard…', act: () => openAdmin() }] : []),
     '-',
     { label: 'Save workspace to a folder on my PC…', act: () => saveWorkspaceToFolder() },
     { label: 'Open workspace from a folder…', act: () => openWorkspaceFromFolder() },
@@ -5059,6 +5063,34 @@ function bootAuth() {
     renderLogin();
     Auth.auth.onAuthStateChanged((u) => { if (u) enterApp(u); else if (Auth.started) location.reload(); else renderLogin(); });
   } else renderLogin();
+}
+
+// ---------- admin dashboard (only ADMIN_EMAIL; Firestore rules enforce the same) ----------
+async function openAdmin() {
+  if (!Auth.isAdmin() || !Auth.db) return toast('Admin only');
+  const win = WM.create({ title: 'VLSIForge admin — users', w: 900, h: 520, x: 120, y: 40 });
+  const stats = h('div', { class: 'toolbar' }); const box = h('div', { class: 'form' }, 'Loading users…');
+  let rows = [];
+  const fmt = (t) => t && t.toDate ? t.toDate().toLocaleString() : '';
+  const load = async () => {
+    box.textContent = 'Loading users…';
+    try {
+      const snap = await Auth.db.collection('users').get();
+      rows = snap.docs.map(d => Object.assign({ uid: d.id }, d.data())).sort((a, b) => ((b.createdAt && b.createdAt.seconds) || 0) - ((a.createdAt && a.createdAt.seconds) || 0));
+      const now = Date.now() / 1000, day = 86400;
+      const active7 = rows.filter(r => r.lastLoginAt && now - r.lastLoginAt.seconds < 7 * day).length;
+      const new7 = rows.filter(r => r.createdAt && now - r.createdAt.seconds < 7 * day).length;
+      stats.innerHTML = ''; stats.append(h('b', {}, rows.length + ' users'), h('span', { class: 'hint', style: { marginLeft: '14px' } }, active7 + ' active in last 7 days · ' + new7 + ' new in last 7 days · ' + rows.filter(r => r.emailVerified).length + ' verified'), h('span', { style: { flex: 1 } }), h('button', { class: 'btn sm', onclick: load }, 'Refresh'), h('button', { class: 'btn sm', onclick: () => offerDownload('vlsiforge_users.csv', ['name,email,verified,created,last_login,uid'].concat(rows.map(r => ['"' + (r.name || '').replace(/"/g, "'") + '"', r.email, r.emailVerified ? 'yes' : 'no', fmt(r.createdAt), fmt(r.lastLoginAt), r.uid].join(','))).join('\n')) }, 'Export CSV'));
+      const filt = h('input', { placeholder: 'Search name or email', 'aria-label': 'Search users', style: { maxWidth: '320px', marginBottom: '8px' } });
+      const tbl = h('table', { class: 'tbl' });
+      const draw = () => { tbl.innerHTML = ''; tbl.append(h('tr', {}, ...['#', 'Name', 'Email', 'Verified', 'Created', 'Last sign-in'].map(t => h('th', {}, t)))); rows.filter(r => !filt.value || ((r.name || '') + ' ' + (r.email || '')).toLowerCase().includes(filt.value.toLowerCase())).forEach((r, i) => tbl.append(h('tr', {}, h('td', {}, i + 1), h('td', {}, r.name || '—'), h('td', {}, r.email || ''), h('td', {}, r.emailVerified ? '✓' : '—'), h('td', {}, fmt(r.createdAt)), h('td', {}, fmt(r.lastLoginAt))))); };
+      filt.oninput = draw; draw();
+      box.innerHTML = ''; box.append(filt, tbl, h('p', { class: 'fnote' }, 'To disable or delete an account, use the Firebase console → Authentication → Users. "Verified" updates when the user next signs in.'));
+    } catch (e) {
+      box.textContent = e.code === 'permission-denied' ? 'Firestore refused the request. Publish the admin rule from firestore.rules, and verify the admin email (check the verification link sent to ' + ADMIN_EMAIL + ').' : 'Could not load users: ' + (e.message || e);
+    }
+  };
+  win.body.append(stats, box); load();
 }
 
 // ---- ui_ciw.js
